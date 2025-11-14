@@ -128,8 +128,10 @@ const data = (Base: DataControllerBase) => class FocusDataControllerExtender ext
   }
 
   private _calculateExpandedRowGlobalIndex(deferred, key, groupPath, group) {
-    const groupFilter = createGroupFilter(groupPath, { group });
     const dataSource = this._dataSource;
+    // 获取 columnsController，用于判断多值字段
+    const columnsController = dataSource?._dataController?._columnsController;
+    const groupFilter = createGroupFilter(groupPath, { group }, columnsController);
     const scrollingMode = this.option('scrolling.mode');
     const isVirtualScrolling = scrollingMode === 'virtual' || scrollingMode === 'infinite';
     const pageSize = dataSource.pageSize();
