@@ -327,6 +327,8 @@ export class GroupingHelper extends GroupingHelperCore {
     const offset = correctSkipLoadOption(that, beginPageIndex * dataSource.pageSize());
     let groupInfo = that.findGroupInfo(path);
     let groupCountQuery;
+    // 获取 columnsController，用于判断多值字段
+    const columnsController = dataSource?._dataController?._columnsController;
 
     if (groupInfo && !groupInfo.isExpanded) {
       // @ts-expect-error
@@ -336,7 +338,7 @@ export class GroupingHelper extends GroupingHelperCore {
         filter: createGroupFilter(path, {
           filter: dataSource.filter(),
           group: dataSource.group(),
-        }),
+        }, columnsController),
       });
     }
 
@@ -378,8 +380,11 @@ export class GroupingHelper extends GroupingHelperCore {
     super.refresh.apply(this, arguments);
 
     if (operationTypes.reload) {
+      // 获取 columnsController，用于判断多值字段
+      const columnsController = dataSource?._dataController?._columnsController;
+      
       return foreachCollapsedGroups(that, (groupInfo) => {
-        const groupCountQuery = loadTotalCount(dataSource, { filter: createGroupFilter(groupInfo.path, storeLoadOptions) });
+        const groupCountQuery = loadTotalCount(dataSource, { filter: createGroupFilter(groupInfo.path, storeLoadOptions, columnsController) });
         const groupOffsetQuery = loadTotalCount(dataSource, { filter: createOffsetFilter(groupInfo.path, storeLoadOptions) });
 
         return when(groupOffsetQuery, groupCountQuery).done((offset, count) => {
