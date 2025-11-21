@@ -269,6 +269,18 @@ function fillSkipTakeInExpandedInfo(options, expandedInfo, currentGroupCount) {
     }
     expandedInfo.take += options.takes[currentGroupIndex];
   }
+
+  console.log("[fillSkipTakeInExpandedInfo] 计算分页参数:", {
+    skip: expandedInfo.skip,
+    take: expandedInfo.take,
+    count: expandedInfo.count,
+    lastCount: expandedInfo.lastCount,
+    itemsCount: expandedInfo.items ? expandedInfo.items.length : 0,
+    currentGroupIndex,
+    groupCount,
+    optionsTakes: options.takes,
+    optionsSkips: options.skips,
+  });
 }
 
 function isDataDeferred(data) {
@@ -467,10 +479,23 @@ function loadLastLevelGroupItems(that, options, expandedInfo, data) {
     loadOptions.take = expandedInfo.take;
   }
 
+  console.log("[loadLastLevelGroupItems] 准备加载数据:", {
+    skip: expandedInfo.skip,
+    take: expandedInfo.take,
+    isPagingLocal,
+    pathsCount: expandedInfo.paths.length,
+    itemsCount: expandedInfo.items.length,
+  });
+
   when(
     expandedInfo.take === 0 ? [] : that._dataSource.loadFromStore(loadOptions)
   )
     .done((items) => {
+      console.log(
+        "[loadLastLevelGroupItems] 数据加载成功，返回数据量:",
+        items ? items.length : 0
+      );
+
       if (isPagingLocal) {
         items = that._dataSource.sortLastLevelGroupItems(
           items,
@@ -532,18 +557,42 @@ function loadLastLevelGroupItems(that, options, expandedInfo, data) {
 
       // 如果服务器返回的数据少于预期，说明数据是共用的
       // 需要根据数据的实际分组值来匹配分组项，而不是按顺序分配
-      const isDataShared =
-        originalItemsLength <
-        expandedInfo.items.reduce(
-          (sum: number, item: any) => sum + (item.count || 0),
-          0
-        );
+      const totalExpectedCount = expandedInfo.items.reduce(
+        (sum: number, item: any) => sum + (item.count || 0),
+        0
+      );
+      const isDataShared = originalItemsLength < totalExpectedCount;
+
+      console.log("[loadLastLevelGroupItems] 判断数据分配方式:", {
+        originalItemsLength,
+        totalExpectedCount,
+        isDataShared,
+        hasGroupSelector: !!groupSelector,
+        groupSelector: groupSelector
+          ? typeof groupSelector === "function"
+            ? "function"
+            : groupSelector
+          : "none",
+        willUseSharedLogic:
+          isDataShared && groupSelector && items && items.length > 0,
+      });
 
       if (isDataShared && groupSelector && items && items.length > 0) {
+        console.log("[loadLastLevelGroupItems] 使用共用数据分配逻辑");
         // 数据共用情况：根据数据的实际分组值匹配分组项
         each(expandedInfo.items, (index, item) => {
           const path = expandedInfo.paths[index];
           const expectedGroupValue = path[path.length - 1]; // 最后一个路径值就是分组值
+
+          console.log(
+            `[loadLastLevelGroupItems] 共用数据-处理分组项 ${index}:`,
+            {
+              path,
+              expectedGroupValue,
+              itemKey: item.key,
+              itemCount: item.count,
+            }
+          );
 
           // 查找匹配该分组值的数据
           const matchedItems: any[] = [];
@@ -584,7 +633,17 @@ function loadLastLevelGroupItems(that, options, expandedInfo, data) {
             // 例如：actualGroupValue = '姜博耀,许南'，expectedGroupValue = '姜博耀'
             let isMatch = false;
 
-            if (actualGroupValue !== undefined && actualGroupValue !== null) {
+            // 特殊处理：如果 expectedGroupValue 是 null/undefined，需要匹配 actualGroupValue 也是 null/undefined
+            if (
+              expectedGroupValue === null ||
+              expectedGroupValue === undefined
+            ) {
+              isMatch =
+                actualGroupValue === null || actualGroupValue === undefined;
+            } else if (
+              actualGroupValue !== undefined &&
+              actualGroupValue !== null
+            ) {
               // 如果 actualGroupValue 是字符串且包含逗号，说明可能是多值
               if (
                 typeof actualGroupValue === "string" &&
@@ -620,6 +679,10 @@ function loadLastLevelGroupItems(that, options, expandedInfo, data) {
               matchedItems.push(dataItem);
             }
           });
+
+          console.log(
+            `[loadLastLevelGroupItems] 共用数据-匹配到 ${matchedItems.length} 条数据`
+          );
 
           // 深拷贝匹配的数据，并为每个分组项的数据生成唯一的 key
           // 需要修改 DataGrid 实际使用的 keyExpr 以确保唯一性
@@ -738,7 +801,20 @@ function loadLastLevelGroupItems(that, options, expandedInfo, data) {
           const itemRef = item;
           const itemKey = item.key;
 
+          console.log(
+            `[loadLastLevelGroupItems] 共用数据-准备赋值 expandedItems.length=${expandedItems.length}`
+          );
+
           item.items = expandedItems;
+          // 标记这个分组项的数据是刚加载的，防止被 _processPaging 截断
+          item._justLoaded = true;
+
+          console.log(
+            `[loadLastLevelGroupItems] 共用数据-赋值后 item.items.length=${
+              item.items ? item.items.length : 0
+            }`
+          );
+
           const afterAssign = item.items ? item.items.length : 0;
           const afterAssignData = item.items
             ? JSON.stringify(
@@ -773,6 +849,7 @@ function loadLastLevelGroupItems(that, options, expandedInfo, data) {
         });
       } else {
         // 非共用数据情况：按顺序分配数据（原有逻辑）
+        console.log("[loadLastLevelGroupItems] 使用非共用数据分配逻辑");
         let currentIndex = 0;
 
         each(expandedInfo.items, (index, item) => {
@@ -780,10 +857,26 @@ function loadLastLevelGroupItems(that, options, expandedInfo, data) {
             item.count - ((index === 0 && expandedInfo.skip) || 0);
           const path = expandedInfo.paths[index];
 
+          console.log(
+            `[loadLastLevelGroupItems] 非共用数据，分配给分组项 ${index}:`,
+            {
+              itemCount,
+              itemsLength: items.length,
+              currentIndex,
+              sliceStart: currentIndex,
+              sliceEnd: currentIndex + itemCount,
+              skip: expandedInfo.skip,
+            }
+          );
+
           // 使用 slice 获取数据片段，并深拷贝每个对象避免引用共享
           const expandedItems = items
             .slice(currentIndex, currentIndex + itemCount)
             .map((dataItem) => extend({}, dataItem));
+
+          console.log(
+            `[loadLastLevelGroupItems] slice 后得到 ${expandedItems.length} 条数据`
+          );
 
           currentIndex += itemCount;
 
@@ -804,7 +897,20 @@ function loadLastLevelGroupItems(that, options, expandedInfo, data) {
           const itemRef = item;
           const itemKey = item.key;
 
+          console.log(
+            `[loadLastLevelGroupItems] 非共用-准备赋值，expandedItems.length=${expandedItems.length}`
+          );
+
           item.items = expandedItems;
+          // 标记这个分组项的数据是刚加载的，防止被 _processPaging 截断
+          item._justLoaded = true;
+
+          console.log(
+            `[loadLastLevelGroupItems] 非共用-赋值后 item.items.length=${
+              item.items ? item.items.length : 0
+            }`
+          );
+
           const afterAssign = item.items ? item.items.length : 0;
           const afterAssignData = item.items
             ? JSON.stringify(
@@ -839,9 +945,92 @@ function loadLastLevelGroupItems(that, options, expandedInfo, data) {
         });
       }
 
+      console.log(
+        "[loadLastLevelGroupItems] 准备 resolve data，分组项数据分配完成"
+      );
+      each(expandedInfo.items, (index, item) => {
+        const itemsArray = item.items;
+        const itemsLength = itemsArray ? itemsArray.length : 0;
+        console.log(`  分组项 ${index}:`, {
+          path: expandedInfo.paths[index],
+          key: item.key,
+          count: item.count,
+          itemsLength,
+          itemsIsArray: Array.isArray(itemsArray),
+          firstItemId:
+            itemsArray && itemsArray[0]
+              ? itemsArray[0].Id || itemsArray[0].id
+              : "none",
+        });
+      });
+
+      // 检查 data 数组中对应的分组项
+      console.log("[loadLastLevelGroupItems] 检查 data 数组中的分组项:");
+      each(data, (dataIndex, dataItem) => {
+        if (dataItem.items !== undefined) {
+          console.log(`  data[${dataIndex}] 分组项:`, {
+            key: dataItem.key,
+            itemsLength: dataItem.items ? dataItem.items.length : 0,
+            itemsIsArray: Array.isArray(dataItem.items),
+          });
+        }
+      });
+
+      console.log("[loadLastLevelGroupItems] resolve 之前，data 的状态:", {
+        dataLength: data ? data.length : 0,
+        dataIsArray: Array.isArray(data),
+        firstItemKey: data && data[0] ? data[0].key : "none",
+        firstItemHasItems:
+          data && data[0] ? data[0].items !== undefined : false,
+      });
+
+      // 验证引用关系：expandedInfo.items[0] 和 data 中的分组项是否是同一个对象
+      console.log("[loadLastLevelGroupItems] 验证引用关系:");
+      each(expandedInfo.items, (index, item) => {
+        const path = expandedInfo.paths[index];
+        // 在 data 中找到对应的分组项
+        let dataItem: any = null;
+        if (data && data.length > 0 && data[0].items !== undefined) {
+          dataItem = data[0]; // 简化：假设只有一个分组
+        }
+
+        console.log(
+          `  expandedInfo.items[${index}] === data中的分组项?`,
+          item === dataItem,
+          {
+            expandedItemKey: item.key,
+            expandedItemsLength: item.items ? item.items.length : 0,
+            dataItemKey: dataItem ? dataItem.key : "none",
+            dataItemsLength:
+              dataItem && dataItem.items ? dataItem.items.length : 0,
+          }
+        );
+      });
+
       options.data.resolve(data);
+      console.log(
+        "[loadLastLevelGroupItems] 已调用 options.data.resolve(data)"
+      );
+
+      // 立即检查 data 数组中分组项的状态
+      setTimeout(() => {
+        console.log(
+          "[loadLastLevelGroupItems] resolve 100ms 后，检查 data 状态:"
+        );
+        each(data, (dataIndex, dataItem) => {
+          if (dataItem.items !== undefined) {
+            console.log(`  data[${dataIndex}]:`, {
+              key: dataItem.key,
+              itemsLength: dataItem.items ? dataItem.items.length : 0,
+            });
+          }
+        });
+      }, 100);
     })
-    .fail(options.data.reject);
+    .fail((error) => {
+      console.error("[loadLastLevelGroupItems] 数据加载失败:", error);
+      options.data.reject(error);
+    });
 }
 
 const loadGroupTotalCount = function (dataSource, options) {
@@ -1173,6 +1362,7 @@ export class GroupingHelper extends GroupingHelperCore {
       }
       callBase(options);
 
+      // 先执行 _processPaging（如果不需要异步加载，这是正确的）
       if (!options.remoteOperations.paging) {
         that._processPaging(options, loadedGroupCount);
       }
@@ -1226,8 +1416,26 @@ export class GroupingHelper extends GroupingHelperCore {
           parent.isContinuationOnNextPage = true;
         });
         if (children) {
-          children = children.slice(0, take);
-          lastItem.items = children;
+          // ⚠️ 关键修复：不要截断通过 loadLastLevelGroupItems 刚加载的数据
+          const isJustLoaded = lastItem._justLoaded === true;
+
+          console.log("[_processTakes] 检查是否需要截断:", {
+            childrenLength: children.length,
+            maxTakeCount,
+            take,
+            isJustLoaded,
+            itemKey: lastItem.key,
+          });
+
+          if (!isJustLoaded) {
+            children = children.slice(0, take);
+            lastItem.items = children;
+            console.log("[_processTakes] 已截断 items 到", take);
+          } else {
+            console.log("[_processTakes] 跳过截断，因为数据是刚加载的");
+            // 清除标记
+            delete lastItem._justLoaded;
+          }
         }
       }
       parents.push(lastItem);
@@ -1242,8 +1450,15 @@ export class GroupingHelper extends GroupingHelperCore {
   }
 
   private _processPaging(options, groupCount) {
+    console.log("[_processPaging] 开始执行分页处理", {
+      dataLength: options.data ? options.data.length : 0,
+      skips: options.skips,
+      takes: options.takes,
+      groupCount,
+    });
     this._processSkips(options.data, options.skips, groupCount);
     this._processTakes(options.data, options.skips, options.takes, groupCount);
+    console.log("[_processPaging] 分页处理完成");
   }
 
   private isLastLevelGroupItemsPagingLocal() {
