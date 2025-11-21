@@ -1,48 +1,48 @@
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types */
-import gridCoreUtils from '__internal/grids/grid_core/m_utils';
-import registerComponent from '@js/core/component_registrator';
-import type { dxElementWrapper } from '@js/core/renderer';
-import $ from '@js/core/renderer';
-import { compileGetter } from '@js/core/utils/data';
-import { extend } from '@js/core/utils/extend';
-import { getHeight } from '@js/core/utils/size';
-import { isDefined } from '@js/core/utils/type';
-import { getWindow } from '@js/core/utils/window';
-import type { Properties } from '@js/ui/gantt';
-import SplitterControl from '@js/ui/splitter_control';
-import type { OptionChanged } from '@ts/core/widget/types';
-import Widget from '@ts/core/widget/widget';
-import type TreeList from '@ts/grids/tree_list/m_widget_base';
-import { GanttActionsManager } from '@ts/ui/gantt/ui.gantt.actions';
-import { GanttContextMenuBar, GanttToolbar } from '@ts/ui/gantt/ui.gantt.bars';
-import { GanttCustomFieldsManager } from '@ts/ui/gantt/ui.gantt.custom_fields';
-import DataOption from '@ts/ui/gantt/ui.gantt.data.option';
-import { GanttDataChangesProcessingHelper } from '@ts/ui/gantt/ui.gantt.data_changes_processing_helper';
-import { GanttDialog } from '@ts/ui/gantt/ui.gantt.dialogs';
-import { GanttExportHelper } from '@ts/ui/gantt/ui.gantt.export_helper';
-import { GanttHelper } from '@ts/ui/gantt/ui.gantt.helper';
-import { GanttMappingHelper } from '@ts/ui/gantt/ui.gantt.mapping_helper';
-import { ModelChangesListener } from '@ts/ui/gantt/ui.gantt.model_changes_listener';
-import { GanttSizeHelper } from '@ts/ui/gantt/ui.gantt.size_helper';
-import { GanttTemplatesManager } from '@ts/ui/gantt/ui.gantt.templates';
-import { GanttTreeList } from '@ts/ui/gantt/ui.gantt.treelist';
-import { GanttView } from '@ts/ui/gantt/ui.gantt.view';
-import LoadPanel from '@ts/ui/load_panel';
+import gridCoreUtils from "__internal/grids/grid_core/m_utils";
+import registerComponent from "@js/core/component_registrator";
+import type { dxElementWrapper } from "@js/core/renderer";
+import $ from "@js/core/renderer";
+import { compileGetter } from "@js/core/utils/data";
+import { extend } from "@js/core/utils/extend";
+import { getHeight } from "@js/core/utils/size";
+import { isDefined } from "@js/core/utils/type";
+import { getWindow } from "@js/core/utils/window";
+import type { Properties } from "@js/ui/gantt";
+import SplitterControl from "@js/ui/splitter_control";
+import type { OptionChanged } from "@ts/core/widget/types";
+import Widget from "@ts/core/widget/widget";
+import type TreeList from "@ts/grids/tree_list/m_widget_base";
+import { GanttActionsManager } from "@ts/ui/gantt/ui.gantt.actions";
+import { GanttContextMenuBar, GanttToolbar } from "@ts/ui/gantt/ui.gantt.bars";
+import { GanttCustomFieldsManager } from "@ts/ui/gantt/ui.gantt.custom_fields";
+import DataOption from "@ts/ui/gantt/ui.gantt.data.option";
+import { GanttDataChangesProcessingHelper } from "@ts/ui/gantt/ui.gantt.data_changes_processing_helper";
+import { GanttDialog } from "@ts/ui/gantt/ui.gantt.dialogs";
+import { GanttExportHelper } from "@ts/ui/gantt/ui.gantt.export_helper";
+import { GanttHelper } from "@ts/ui/gantt/ui.gantt.helper";
+import { GanttMappingHelper } from "@ts/ui/gantt/ui.gantt.mapping_helper";
+import { ModelChangesListener } from "@ts/ui/gantt/ui.gantt.model_changes_listener";
+import { GanttSizeHelper } from "@ts/ui/gantt/ui.gantt.size_helper";
+import { GanttTemplatesManager } from "@ts/ui/gantt/ui.gantt.templates";
+import { GanttTreeList } from "@ts/ui/gantt/ui.gantt.treelist";
+import { GanttView } from "@ts/ui/gantt/ui.gantt.view";
+import LoadPanel from "@ts/ui/load_panel";
 
 const window = getWindow();
 
-const GANTT_CLASS = 'dx-gantt';
-const GANTT_VIEW_CLASS = 'dx-gantt-view';
-const GANTT_TREE_LIST_WRAPPER = 'dx-gantt-treelist-wrapper';
-const GANTT_TOOLBAR_WRAPPER = 'dx-gantt-toolbar-wrapper';
-const GANTT_MAIN_WRAPPER = 'dx-gantt-main-wrapper';
+const GANTT_CLASS = "dx-gantt";
+const GANTT_VIEW_CLASS = "dx-gantt-view";
+const GANTT_TREE_LIST_WRAPPER = "dx-gantt-treelist-wrapper";
+const GANTT_TOOLBAR_WRAPPER = "dx-gantt-toolbar-wrapper";
+const GANTT_MAIN_WRAPPER = "dx-gantt-main-wrapper";
 
-const GANTT_TASKS = 'tasks';
-const GANTT_DEPENDENCIES = 'dependencies';
-const GANTT_RESOURCES = 'resources';
-const GANTT_RESOURCE_ASSIGNMENTS = 'resourceAssignments';
+const GANTT_TASKS = "tasks";
+const GANTT_DEPENDENCIES = "dependencies";
+const GANTT_RESOURCES = "resources";
+const GANTT_RESOURCE_ASSIGNMENTS = "resourceAssignments";
 
-const GANTT_NEW_TASK_CACHE_KEY = 'gantt_new_task_key';
+const GANTT_NEW_TASK_CACHE_KEY = "gantt_new_task_key";
 
 interface SortFilterState {
   sort?: { sortIndex: number; sortOrder: string }[];
@@ -116,13 +116,13 @@ class Gantt extends Widget<Properties> {
 
   _splitter?: SplitterControl;
 
-  _tasks?: Properties['tasks'];
+  _tasks?: Properties["tasks"];
 
-  _dependencies?: Properties['dependencies'];
+  _dependencies?: Properties["dependencies"];
 
-  _resources?: Properties['resources'];
+  _resources?: Properties["resources"];
 
-  _resourceAssignments?: Properties['resourceAssignments'];
+  _resourceAssignments?: Properties["resourceAssignments"];
 
   _treeListParentRecalculatedDataUpdating?: boolean;
 
@@ -153,25 +153,25 @@ class Gantt extends Widget<Properties> {
     super._initMarkup();
     this.$element().addClass(GANTT_CLASS);
 
-    this._$toolbarWrapper = $('<div>')
+    this._$toolbarWrapper = $("<div>")
       .addClass(GANTT_TOOLBAR_WRAPPER)
       .appendTo(this.$element());
-    this._$toolbar = $('<div>').appendTo(this._$toolbarWrapper);
+    this._$toolbar = $("<div>").appendTo(this._$toolbarWrapper);
 
-    this._$mainWrapper = $('<div>')
+    this._$mainWrapper = $("<div>")
       .addClass(GANTT_MAIN_WRAPPER)
       .appendTo(this.$element());
-    this._$treeListWrapper = $('<div>')
+    this._$treeListWrapper = $("<div>")
       .addClass(GANTT_TREE_LIST_WRAPPER)
       .appendTo(this._$mainWrapper);
-    this._$treeList = $('<div>').appendTo(this._$treeListWrapper);
-    this._$splitter = $('<div>').appendTo(this._$mainWrapper);
-    this._$ganttView = $('<div>')
+    this._$treeList = $("<div>").appendTo(this._$treeListWrapper);
+    this._$splitter = $("<div>").appendTo(this._$mainWrapper);
+    this._$ganttView = $("<div>")
       .addClass(GANTT_VIEW_CLASS)
       .appendTo(this._$mainWrapper);
-    this._$dialog = $('<div>').appendTo(this.$element());
-    this._$loadPanel = $('<div>').appendTo(this.$element());
-    this._$contextMenu = $('<div>').appendTo(this.$element());
+    this._$dialog = $("<div>").appendTo(this.$element());
+    this._$loadPanel = $("<div>").appendTo(this.$element());
+    this._$contextMenu = $("<div>").appendTo(this.$element());
   }
 
   _clean(): void {
@@ -222,7 +222,7 @@ class Gantt extends Widget<Properties> {
   }
 
   _renderContent(): void {
-    this._isMainElementVisible = this.$element().is(':visible');
+    this._isMainElementVisible = this.$element().is(":visible");
     if (this._isMainElementVisible && !this._isGanttRendered) {
       this._isGanttRendered = true;
       this._renderBars();
@@ -248,8 +248,8 @@ class Gantt extends Widget<Properties> {
       },
     });
     this._splitter.option(
-      'initialLeftPanelWidth',
-      this.option('taskListWidth'),
+      "initialLeftPanelWidth",
+      this.option("taskListWidth")
     );
   }
 
@@ -299,7 +299,7 @@ class Gantt extends Widget<Properties> {
     } = this.option();
 
     this._ganttView = this._createComponent(this._$ganttView, GanttView, {
-      width: '100%',
+      width: "100%",
       height: this._ganttTreeList?.getOffsetHeight(),
       // @ts-expect-error ts-error
       rowHeight: this._ganttTreeList?.getRowHeight(),
@@ -326,7 +326,7 @@ class Gantt extends Widget<Properties> {
       mainElement: this.$element(),
       onSelectionChanged: (e): void => {
         this._ganttTreeList?.selectRows(
-          GanttHelper.getArrayFromOneElement(e.id),
+          GanttHelper.getArrayFromOneElement(e.id)
         );
       },
       onViewTypeChanged: (e): void => {
@@ -344,19 +344,19 @@ class Gantt extends Widget<Properties> {
       exportHelper: this._getExportHelper(),
       taskTooltipContentTemplate:
         this._ganttTemplatesManager?.getTaskTooltipContentTemplateFunc(
-          taskTooltipContentTemplate,
+          taskTooltipContentTemplate
         ),
       taskProgressTooltipContentTemplate:
         this._ganttTemplatesManager?.getTaskProgressTooltipContentTemplateFunc(
-          taskProgressTooltipContentTemplate,
+          taskProgressTooltipContentTemplate
         ),
       taskTimeTooltipContentTemplate:
         this._ganttTemplatesManager?.getTaskTimeTooltipContentTemplateFunc(
-          taskTimeTooltipContentTemplate,
+          taskTimeTooltipContentTemplate
         ),
       taskContentTemplate:
         this._ganttTemplatesManager?.getTaskContentTemplateFunc(
-          taskContentTemplate,
+          taskContentTemplate
         ),
       onTaskClick: (e): void => {
         this._ganttTreeList?.onRowClick(e);
@@ -389,8 +389,8 @@ class Gantt extends Widget<Properties> {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _onTreeListContentReady(e): void {
     if (
-      this._isParentAutoUpdateMode()
-      && this._treeListParentRecalculatedDataUpdating
+      this._isParentAutoUpdateMode() &&
+      this._treeListParentRecalculatedDataUpdating
     ) {
       this._fireContentReadyAction();
     }
@@ -400,7 +400,7 @@ class Gantt extends Widget<Properties> {
   }
 
   _onViewTypeChanged(type: number): void {
-    this.option('scaleType', this._actionsManager?._getScaleType(type));
+    this.option("scaleType", this._actionsManager?._getScaleType(type));
   }
 
   _refreshDataSource(name: string): void {
@@ -418,9 +418,9 @@ class Gantt extends Widget<Properties> {
       this._getLoadPanel.bind(this),
       (resultName, resultData): void => {
         this._dataSourceChanged(resultName, resultData);
-      },
+      }
     );
-    dataOption.option('dataSource', this._getSpecificDataSourceOption(name));
+    dataOption.option("dataSource", this._getSpecificDataSourceOption(name));
     dataOption._refreshDataSource();
     this[`_${name}Option`] = dataOption;
   }
@@ -431,7 +431,7 @@ class Gantt extends Widget<Properties> {
     if (!dataSource || Array.isArray(dataSource)) {
       return {
         store: {
-          type: 'array',
+          type: "array",
           data: dataSource ?? [],
           key: this.option(`${name}.keyExpr`),
         },
@@ -442,18 +442,19 @@ class Gantt extends Widget<Properties> {
 
   _dataSourceChanged(dataSourceName: string, data): void {
     const getters = GanttHelper.compileGettersByOption(
-      this.option(dataSourceName),
+      this.option(dataSourceName)
     );
     const validatedData = this._validateSourceData(dataSourceName, data);
     const mappedData = validatedData.map(
-      GanttHelper.prepareMapHandler(getters),
+      GanttHelper.prepareMapHandler(getters)
     );
 
     this[`_${dataSourceName}`] = mappedData;
     this._setGanttViewOption(dataSourceName, mappedData);
     if (dataSourceName === GANTT_TASKS) {
       this._tasksRaw = validatedData;
-      const forceUpdate = !this._ganttTreeList?.getDataSource() && !this._ganttView;
+      const forceUpdate =
+        !this._ganttTreeList?.getDataSource() && !this._ganttView;
       this._ganttTreeList?.saveExpandedKeys();
       this._ganttTreeList?.updateDataSource(validatedData, forceUpdate);
     }
@@ -473,9 +474,10 @@ class Gantt extends Widget<Properties> {
     const keyGetter = compileGetter(this.option(`${GANTT_TASKS}.keyExpr`));
     const parentIdGetter = compileGetter(
       // @ts-expect-error ts-error
-      this.option(`${GANTT_TASKS}.parentIdExpr`),
+      this.option(`${GANTT_TASKS}.parentIdExpr`)
     );
-    const rootValue = this.option('rootValue') ?? 'dx_dxt_gantt_default_root_value';
+    const rootValue =
+      this.option("rootValue") ?? "dx_dxt_gantt_default_root_value";
 
     const validationTree = {};
     // eslint-disable-next-line @typescript-eslint/prefer-for-of
@@ -486,15 +488,15 @@ class Gantt extends Widget<Properties> {
         const key = keyGetter(item);
         const isRootTask = key === rootValue;
         // eslint-disable-next-line no-multi-assign
-        const treeItem = validationTree[key] ??= { key, children: [] };
+        const treeItem = (validationTree[key] ??= { key, children: [] });
         if (!isRootTask) {
           // @ts-expect-error ts-error
           const parentId = parentIdGetter(item) ?? rootValue;
           // eslint-disable-next-line no-multi-assign
-          const parentTreeItem = validationTree[parentId] ??= {
+          const parentTreeItem = (validationTree[parentId] ??= {
             key: parentId,
             children: [],
-          };
+          });
           parentTreeItem.children.push(treeItem);
           treeItem.parent = parentTreeItem;
         }
@@ -526,7 +528,7 @@ class Gantt extends Widget<Properties> {
       if (isTaskInsert) {
         this._customFieldsManager?.addCustomFieldsDataFromCache(
           GANTT_NEW_TASK_CACHE_KEY,
-          data,
+          data
         );
       }
 
@@ -542,11 +544,11 @@ class Gantt extends Widget<Properties> {
             this._actionsManager?.raiseInsertedAction(
               optionName,
               data,
-              insertedId,
+              insertedId
             );
           },
           true,
-          isTaskInsert,
+          isTaskInsert
         );
         this._ganttTreeList?.saveExpandedKeys();
         dataOption._reloadDataSource().done((): void => {
@@ -564,9 +566,10 @@ class Gantt extends Widget<Properties> {
     if (dataOption) {
       const data = this._mappingHelper?.convertCoreToMappedData(
         optionName,
-        values,
+        values
       );
-      const hasCustomFieldsData = isTaskUpdated && this._customFieldsManager?.cache.hasData(key);
+      const hasCustomFieldsData =
+        isTaskUpdated && this._customFieldsManager?.cache.hasData(key);
       if (hasCustomFieldsData) {
         this._customFieldsManager?.addCustomFieldsDataFromCache(key, data);
       }
@@ -578,7 +581,7 @@ class Gantt extends Widget<Properties> {
             this._actionsManager?.raiseUpdatedAction(optionName, data, key);
           },
           true,
-          isTaskUpdated,
+          isTaskUpdated
         );
         dataOption._reloadDataSource();
       });
@@ -595,11 +598,11 @@ class Gantt extends Widget<Properties> {
             this._actionsManager?.raiseDeletedAction(
               optionName,
               key,
-              this._mappingHelper?.convertCoreToMappedData(optionName, data),
+              this._mappingHelper?.convertCoreToMappedData(optionName, data)
             );
           },
           true,
-          optionName === GANTT_TASKS,
+          optionName === GANTT_TASKS
         );
         dataOption._reloadDataSource();
       });
@@ -614,10 +617,10 @@ class Gantt extends Widget<Properties> {
   _onParentTasksRecalculated(data): void {
     if (!this.isSieving) {
       const setters = GanttHelper.compileSettersByOption(
-        this.option(GANTT_TASKS),
+        this.option(GANTT_TASKS)
       );
       const treeDataSource = this._customFieldsManager?.appendCustomFields(
-        data.map(GanttHelper.prepareSetterMapHandler(setters)),
+        data.map(GanttHelper.prepareSetterMapHandler(setters))
       );
       // split threads for treelist filter|sort and datasource update (T1082108)
       // eslint-disable-next-line no-restricted-globals
@@ -635,9 +638,11 @@ class Gantt extends Widget<Properties> {
 
   _executeFuncSetters(optionName: string, coreData, key): void {
     const funcSetters = GanttHelper.compileFuncSettersByOption(
-      this.option(optionName),
+      this.option(optionName)
     );
-    const keysToUpdate = Object.keys(funcSetters).filter((k): boolean => isDefined(coreData[k]));
+    const keysToUpdate = Object.keys(funcSetters).filter((k): boolean =>
+      isDefined(coreData[k])
+    );
 
     if (keysToUpdate.length > 0) {
       const dataObject = this._getDataSourceItem(optionName, key);
@@ -660,19 +665,22 @@ class Gantt extends Widget<Properties> {
     }));
     const sortedStateChanged = !this._compareSortedState(
       this._savedSortFilterState?.sort,
-      sortedState,
+      sortedState
     );
 
-    const filterValue = treeList?.option('filterValue');
-    const filterChanged = treeList?.option('expandNodesOnFiltering')
-      && filterValue !== this._savedSortFilterState?.filter;
+    const filterValue = treeList?.option("filterValue");
+    const filterChanged =
+      treeList?.option("expandNodesOnFiltering") &&
+      filterValue !== this._savedSortFilterState?.filter;
 
-    const sieveColumn = sortedColumns[0]
-      || columns.filter(
+    const sieveColumn =
+      sortedColumns[0] ||
+      columns.filter(
         // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-        (c) => isDefined(c.filterValue) || c.filterValues?.length,
+        (c) => isDefined(c.filterValue) || c.filterValues?.length
       )[0];
-    const isClearSieving = this._savedSortFilterState?.sieveColumn && !sieveColumn;
+    const isClearSieving =
+      this._savedSortFilterState?.sieveColumn && !sieveColumn;
     if (sieveColumn || isClearSieving) {
       const sieveOptions = sieveColumn && {
         sievedItems: this._ganttTreeList?.getSievedItems(),
@@ -681,7 +689,7 @@ class Gantt extends Widget<Properties> {
         expandTasks: filterChanged || (filterValue && sortedStateChanged),
       };
       this.isSieving = !isClearSieving;
-      this._setGanttViewOption('sieve', sieveOptions);
+      this._setGanttViewOption("sieve", sieveOptions);
     }
     this._savedSortFilterState = {
       sort: sortedState,
@@ -696,12 +704,13 @@ class Gantt extends Widget<Properties> {
       return false;
     }
     return state1.every(
-      (c, i): boolean => c.sortIndex === state2[i].sortIndex
-        && c.sortOrder === state2[i].sortOrder,
+      (c, i): boolean =>
+        c.sortIndex === state2[i].sortIndex &&
+        c.sortOrder === state2[i].sortOrder
     );
   }
 
-  _getToolbarItems(): NonNullable<Properties['toolbar']>['items'] {
+  _getToolbarItems(): NonNullable<Properties["toolbar"]>["items"] {
     const { toolbar } = this.option();
     // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
     return toolbar?.items || [];
@@ -739,12 +748,12 @@ class Gantt extends Widget<Properties> {
       e.parameters,
       e.callback,
       e.afterClosing,
-      this.option('editing'),
+      this.option("editing")
     );
   }
 
   _showPopupMenu(info): void {
-    if (this.option('contextMenu.enabled')) {
+    if (this.option("contextMenu.enabled")) {
       this._ganttView?.getBarManager().updateContextMenu();
       const args = {
         cancel: false,
@@ -753,7 +762,7 @@ class Gantt extends Widget<Properties> {
         targetKey: info.key,
         items: extend(true, [], this._contextMenuBar?._items),
         data:
-          info.type === 'task'
+          info.type === "task"
             ? this.getTaskData(info.key)
             : this.getDependencyData(info.key),
       };
@@ -860,43 +869,53 @@ class Gantt extends Widget<Properties> {
       GanttHelper.getAllParentNodesKeys(node, nodesToExpand);
     }
 
-    // eslint-disable-next-line @typescript-eslint/init-declarations
-    let promise;
+    // 性能优化：使用批量设置 expandedRowKeys，避免逐行调用 expandRow/collapseRow
+    // 同时使用 beginUpdate/endUpdate 暂停渲染，进一步提升性能
     this._lockRowExpandEvent = allExpandableNodes.length > 0;
-    const state = allExpandableNodes.reduce((previous, node, index) => {
+
+    // 计算需要展开的节点键值数组
+    const expandedKeys = [];
+    const state = {};
+
+    allExpandableNodes.forEach((node) => {
+      let shouldExpand = expanded;
+
       if (rowKey) {
         // @ts-expect-error ts-error
-        // eslint-disable-next-line no-param-reassign
-        expanded = nodesToExpand.includes(node.key);
+        shouldExpand = nodesToExpand.includes(node.key);
       } else if (level) {
         // @ts-expect-error ts-error
-        // eslint-disable-next-line no-param-reassign
-        expanded = node.level < level;
+        shouldExpand = node.level < level;
       }
 
       // @ts-expect-error ts-error
-      previous[node.key] = expanded;
-      const action = expanded
-        // @ts-expect-error ts-error
-        ? this._treeList?.expandRow
-        // @ts-expect-error ts-error
-        : this._treeList?.collapseRow;
-      const isLast = index === allExpandableNodes.length - 1;
-      if (isLast) {
-        // @ts-expect-error ts-error
-        promise = action(node.key);
-      } else {
-        // @ts-expect-error ts-error
-        action(node.key);
-      }
-      return previous;
-    }, {});
+      state[node.key] = shouldExpand;
 
-    promise?.then((): void => {
+      if (shouldExpand) {
+        // @ts-expect-error ts-error
+        expandedKeys.push(node.key);
+      }
+    });
+
+    // 使用 beginUpdate/endUpdate 包裹批量操作，暂停重绘提升性能
+    this._treeList?.beginUpdate();
+    try {
+      // 批量设置展开状态，只触发一次 TreeList 更新
+      this._treeList?.option("expandedRowKeys", expandedKeys);
+
+      // 同步状态到 GanttView（在 endUpdate 之前完成状态计算）
       this._ganttView?.applyTasksExpandedState(state);
+    } finally {
+      this._treeList?.endUpdate();
+
+      // 强制刷新视图，确保虚拟滚动正确渲染所有可见行
+      // 这解决了 beginUpdate/endUpdate 可能导致的渲染不完整问题
+      this._treeList?.repaint();
+
+      // 调整高度需要在渲染完成后进行
       this._sizeHelper?.adjustHeight();
       delete this._lockRowExpandEvent;
-    });
+    }
   }
 
   // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
@@ -906,7 +925,9 @@ class Gantt extends Widget<Properties> {
     }
     const coreData = this._ganttView?._ganttViewCore.getTaskResources(key);
     // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-    return coreData.map((r) => this._mappingHelper?.convertCoreToMappedData(GANTT_RESOURCES, r));
+    return coreData.map((r) =>
+      this._mappingHelper?.convertCoreToMappedData(GANTT_RESOURCES, r)
+    );
   }
 
   // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
@@ -955,10 +976,10 @@ class Gantt extends Widget<Properties> {
   insertTask(data): void {
     this._customFieldsManager?.saveCustomFieldsDataToCache(
       GANTT_NEW_TASK_CACHE_KEY,
-      data,
+      data
     );
     this._ganttView?._ganttViewCore.insertTask(
-      this._mappingHelper?.convertMappedToCoreData(GANTT_TASKS, data),
+      this._mappingHelper?.convertMappedToCoreData(GANTT_TASKS, data)
     );
   }
 
@@ -969,7 +990,7 @@ class Gantt extends Widget<Properties> {
   updateTask(key, data): void {
     const coreTaskData = this._mappingHelper?.convertMappedToCoreData(
       GANTT_TASKS,
-      data,
+      data
     );
     // @ts-expect-error ts-error
     const isCustomFieldsUpdateOnly = !Object.keys(coreTaskData).length;
@@ -977,10 +998,11 @@ class Gantt extends Widget<Properties> {
       key,
       data,
       true,
-      isCustomFieldsUpdateOnly,
+      isCustomFieldsUpdateOnly
     );
     if (isCustomFieldsUpdateOnly) {
-      const customFieldsData = this._customFieldsManager?._getCustomFieldsData(data);
+      const customFieldsData =
+        this._customFieldsManager?._getCustomFieldsData(data);
       if (Object.keys(customFieldsData).length > 0) {
         this._actionsManager?.raiseUpdatingAction(GANTT_TASKS, {
           cancel: false,
@@ -1001,15 +1023,15 @@ class Gantt extends Widget<Properties> {
     const coreData = this._ganttView?._ganttViewCore.getDependencyData(key);
     return coreData
       ? this._mappingHelper?.convertCoreToMappedData(
-        GANTT_DEPENDENCIES,
-        coreData,
-      )
+          GANTT_DEPENDENCIES,
+          coreData
+        )
       : null;
   }
 
   insertDependency(data): void {
     this._ganttView?._ganttViewCore.insertDependency(
-      this._mappingHelper?.convertMappedToCoreData(GANTT_DEPENDENCIES, data),
+      this._mappingHelper?.convertMappedToCoreData(GANTT_DEPENDENCIES, data)
     );
   }
 
@@ -1032,18 +1054,19 @@ class Gantt extends Widget<Properties> {
   insertResource(data, taskKeys): void {
     this._ganttView?._ganttViewCore.insertResource(
       this._mappingHelper?.convertMappedToCoreData(GANTT_RESOURCES, data),
-      taskKeys,
+      taskKeys
     );
   }
 
   // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
   getResourceAssignmentData(key) {
-    const coreData = this._ganttView?._ganttViewCore.getResourceAssignmentData(key);
+    const coreData =
+      this._ganttView?._ganttViewCore.getResourceAssignmentData(key);
     return coreData
       ? this._mappingHelper?.convertCoreToMappedData(
-        GANTT_RESOURCE_ASSIGNMENTS,
-        coreData,
-      )
+          GANTT_RESOURCE_ASSIGNMENTS,
+          coreData
+        )
       : null;
   }
 
@@ -1054,7 +1077,7 @@ class Gantt extends Widget<Properties> {
   unassignResourceFromTask(resourceKey, taskKey): void {
     this._ganttView?._ganttViewCore.unassignResourceFromTask(
       resourceKey,
-      taskKey,
+      taskKey
     );
   }
 
@@ -1089,10 +1112,10 @@ class Gantt extends Widget<Properties> {
       fullOptions.docCreateMethod = fullOptions.createDocumentMethod;
     }
     fullOptions.pdfDocument ??= fullOptions.jsPDFDocument;
-    fullOptions.docCreateMethod
+    fullOptions.docCreateMethod ??=
       // @ts-expect-error ts-error
-      ??= window.jspdf?.jsPDF ?? window.jsPDF;
-    fullOptions.format ??= 'a4';
+      window.jspdf?.jsPDF ?? window.jsPDF;
+    fullOptions.format ??= "a4";
     return new Promise((resolve) => {
       const doc = this._ganttView?._ganttViewCore.exportToPdf(fullOptions);
       resolve(doc);
@@ -1142,11 +1165,11 @@ class Gantt extends Widget<Properties> {
   }
 
   showResources(value: boolean): void {
-    this.option('showResources', value);
+    this.option("showResources", value);
   }
 
   showDependencies(value: boolean): void {
-    this.option('showDependencies', value);
+    this.option("showDependencies", value);
   }
 
   zoomIn(): void {
@@ -1166,212 +1189,210 @@ class Gantt extends Widget<Properties> {
     const { name, fullName, value } = args;
 
     switch (name) {
-      case 'tasks':
+      case "tasks":
         this._refreshDataSource(GANTT_TASKS);
         break;
-      case 'dependencies':
+      case "dependencies":
         this._refreshDataSource(GANTT_DEPENDENCIES);
         break;
-      case 'resources':
+      case "resources":
         this._refreshDataSource(GANTT_RESOURCES);
         break;
-      case 'resourceAssignments':
+      case "resourceAssignments":
         this._refreshDataSource(GANTT_RESOURCE_ASSIGNMENTS);
         break;
-      case 'columns':
+      case "columns":
         this._ganttTreeList?.setOption(
-          'columns',
-          this._ganttTreeList.getColumns(),
+          "columns",
+          this._ganttTreeList.getColumns()
         );
         break;
-      case 'taskListWidth':
+      case "taskListWidth":
         this._sizeHelper?.setInnerElementsWidth();
         break;
-      case 'showResources':
-        this._setGanttViewOption('showResources', value);
+      case "showResources":
+        this._setGanttViewOption("showResources", value);
         break;
-      case 'showDependencies':
-        this._setGanttViewOption('showDependencies', value);
+      case "showDependencies":
+        this._setGanttViewOption("showDependencies", value);
         break;
-      case 'taskTitlePosition':
-        this._setGanttViewOption('taskTitlePosition', value);
+      case "taskTitlePosition":
+        this._setGanttViewOption("taskTitlePosition", value);
         break;
-      case 'firstDayOfWeek':
-        this._setGanttViewOption('firstDayOfWeek', value);
+      case "firstDayOfWeek":
+        this._setGanttViewOption("firstDayOfWeek", value);
         break;
-      case 'startDateRange':
-        this._setGanttViewOption('startDateRange', value);
+      case "startDateRange":
+        this._setGanttViewOption("startDateRange", value);
         break;
-      case 'endDateRange':
-        this._setGanttViewOption('endDateRange', value);
+      case "endDateRange":
+        this._setGanttViewOption("endDateRange", value);
         break;
-      case 'selectedRowKey':
+      case "selectedRowKey":
         this._ganttTreeList?.selectRows(
-          GanttHelper.getArrayFromOneElement(value),
+          GanttHelper.getArrayFromOneElement(value)
         );
         break;
-      case 'onSelectionChanged':
+      case "onSelectionChanged":
         this._actionsManager?.createSelectionChangedAction();
         break;
-      case 'onTaskClick':
+      case "onTaskClick":
         this._actionsManager?.createTaskClickAction();
         break;
-      case 'onTaskDblClick':
+      case "onTaskDblClick":
         this._actionsManager?.createTaskDblClickAction();
         break;
-      case 'onTaskInserting':
+      case "onTaskInserting":
         this._actionsManager?.createTaskInsertingAction();
         break;
-      case 'onTaskInserted':
+      case "onTaskInserted":
         this._actionsManager?.createTaskInsertedAction();
         break;
-      case 'onTaskDeleting':
+      case "onTaskDeleting":
         this._actionsManager?.createTaskDeletingAction();
         break;
-      case 'onTaskDeleted':
+      case "onTaskDeleted":
         this._actionsManager?.createTaskDeletedAction();
         break;
-      case 'onTaskUpdating':
+      case "onTaskUpdating":
         this._actionsManager?.createTaskUpdatingAction();
         break;
-      case 'onTaskUpdated':
+      case "onTaskUpdated":
         this._actionsManager?.createTaskUpdatedAction();
         break;
-      case 'onTaskMoving':
+      case "onTaskMoving":
         this._actionsManager?.createTaskMovingAction();
         break;
-      case 'onTaskEditDialogShowing':
+      case "onTaskEditDialogShowing":
         this._actionsManager?.createTaskEditDialogShowingAction();
         break;
-      case 'onResourceManagerDialogShowing':
+      case "onResourceManagerDialogShowing":
         this._actionsManager?.createResourceManagerDialogShowingAction();
         break;
-      case 'onDependencyInserting':
+      case "onDependencyInserting":
         this._actionsManager?.createDependencyInsertingAction();
         break;
-      case 'onDependencyInserted':
+      case "onDependencyInserted":
         this._actionsManager?.createDependencyInsertedAction();
         break;
-      case 'onDependencyDeleting':
+      case "onDependencyDeleting":
         this._actionsManager?.createDependencyDeletingAction();
         break;
-      case 'onDependencyDeleted':
+      case "onDependencyDeleted":
         this._actionsManager?.createDependencyDeletedAction();
         break;
-      case 'onResourceInserting':
+      case "onResourceInserting":
         this._actionsManager?.createResourceInsertingAction();
         break;
-      case 'onResourceInserted':
+      case "onResourceInserted":
         this._actionsManager?.createResourceInsertedAction();
         break;
-      case 'onResourceDeleting':
+      case "onResourceDeleting":
         this._actionsManager?.createResourceDeletingAction();
         break;
-      case 'onResourceDeleted':
+      case "onResourceDeleted":
         this._actionsManager?.createResourceDeletedAction();
         break;
-      case 'onResourceAssigning':
+      case "onResourceAssigning":
         this._actionsManager?.createResourceAssigningAction();
         break;
-      case 'onResourceAssigned':
+      case "onResourceAssigned":
         this._actionsManager?.createResourceAssignedAction();
         break;
-      case 'onResourceUnassigning':
+      case "onResourceUnassigning":
         this._actionsManager?.createResourceUnassigningAction();
         break;
-      case 'onResourceUnassigned':
+      case "onResourceUnassigned":
         this._actionsManager?.createResourceUnassignedAction();
         break;
-      case 'onCustomCommand':
+      case "onCustomCommand":
         this._actionsManager?.createCustomCommandAction();
         break;
-      case 'onContextMenuPreparing':
+      case "onContextMenuPreparing":
         this._actionsManager?.createContextMenuPreparingAction();
         break;
-      case 'onScaleCellPrepared':
+      case "onScaleCellPrepared":
         this._actionsManager?.createScaleCellPreparedAction();
         break;
-      case 'allowSelection':
+      case "allowSelection":
         this._ganttTreeList?.setOption(
-          'selection.mode',
-          GanttHelper.getSelectionMode(value),
+          "selection.mode",
+          GanttHelper.getSelectionMode(value)
         );
-        this._setGanttViewOption('allowSelection', value);
+        this._setGanttViewOption("allowSelection", value);
         break;
-      case 'showRowLines':
-        this._ganttTreeList?.setOption('showRowLines', value);
-        this._setGanttViewOption('showRowLines', value);
+      case "showRowLines":
+        this._ganttTreeList?.setOption("showRowLines", value);
+        this._setGanttViewOption("showRowLines", value);
         break;
-      case 'stripLines':
+      case "stripLines":
         this._setGanttViewOption(fullName, value);
         break;
-      case 'scaleType':
-        this._setGanttViewOption('scaleType', value);
+      case "scaleType":
+        this._setGanttViewOption("scaleType", value);
         break;
-      case 'scaleTypeRange':
-        this._setGanttViewOption('scaleTypeRange', this.option(name));
+      case "scaleTypeRange":
+        this._setGanttViewOption("scaleTypeRange", this.option(name));
         break;
-      case 'editing':
-        this._setGanttViewOption('editing', this.option(name));
+      case "editing":
+        this._setGanttViewOption("editing", this.option(name));
         break;
-      case 'validation':
-        this._setGanttViewOption('validation', this.option(name));
+      case "validation":
+        this._setGanttViewOption("validation", this.option(name));
         break;
-      case 'toolbar':
+      case "toolbar":
         this._updateToolbarContent();
         break;
-      case 'contextMenu':
+      case "contextMenu":
         this._updateContextMenu();
         break;
-      case 'taskTooltipContentTemplate':
+      case "taskTooltipContentTemplate":
         this._setGanttViewOption(
-          'taskTooltipContentTemplate',
-          this._ganttTemplatesManager?.getTaskTooltipContentTemplateFunc(
-            value,
-          ),
+          "taskTooltipContentTemplate",
+          this._ganttTemplatesManager?.getTaskTooltipContentTemplateFunc(value)
         );
         break;
-      case 'taskProgressTooltipContentTemplate':
+      case "taskProgressTooltipContentTemplate":
         this._setGanttViewOption(
-          'taskProgressTooltipContentTemplate',
+          "taskProgressTooltipContentTemplate",
           this._ganttTemplatesManager?.getTaskProgressTooltipContentTemplateFunc(
-            value,
-          ),
+            value
+          )
         );
         break;
-      case 'taskTimeTooltipContentTemplate':
+      case "taskTimeTooltipContentTemplate":
         this._setGanttViewOption(
-          'taskTimeTooltipContentTemplate',
+          "taskTimeTooltipContentTemplate",
           this._ganttTemplatesManager?.getTaskTimeTooltipContentTemplateFunc(
-            value,
-          ),
+            value
+          )
         );
         break;
-      case 'taskContentTemplate':
+      case "taskContentTemplate":
         this._setGanttViewOption(
-          'taskContentTemplate',
-          this._ganttTemplatesManager?.getTaskContentTemplateFunc(value),
+          "taskContentTemplate",
+          this._ganttTemplatesManager?.getTaskContentTemplateFunc(value)
         );
         break;
-      case 'rootValue':
-        this._ganttTreeList?.setOption('rootValue', value);
+      case "rootValue":
+        this._ganttTreeList?.setOption("rootValue", value);
         break;
-      case 'width':
+      case "width":
         super._optionChanged(args);
         this._sizeHelper?.updateGanttWidth();
         break;
-      case 'height':
+      case "height":
         super._optionChanged(args);
         this._sizeHelper?.setGanttHeight(getHeight(this.$element()));
         break;
-      case 'sorting':
-        this._ganttTreeList?.setOption('sorting', this.option(name));
+      case "sorting":
+        this._ganttTreeList?.setOption("sorting", this.option(name));
         break;
-      case 'filterRow':
-        this._ganttTreeList?.setOption('filterRow', this.option(name));
+      case "filterRow":
+        this._ganttTreeList?.setOption("filterRow", this.option(name));
         break;
-      case 'headerFilter':
-        this._ganttTreeList?.setOption('headerFilter', this.option(name));
+      case "headerFilter":
+        this._ganttTreeList?.setOption("headerFilter", this.option(name));
         break;
       default:
         super._optionChanged(args);
@@ -1379,5 +1400,5 @@ class Gantt extends Widget<Properties> {
   }
 }
 
-registerComponent('dxGantt', Gantt);
+registerComponent("dxGantt", Gantt);
 export default Gantt;
