@@ -1,39 +1,39 @@
-import eventsEngine from '@js/common/core/events/core/events_engine';
-import { removeEvent } from '@js/common/core/events/remove';
-import type { dxElementWrapper } from '@js/core/renderer';
-import $ from '@js/core/renderer';
-import { isDefined } from '@js/core/utils/type';
-import { rowsModule, RowsView } from '@ts/grids/grid_core/views/m_rows_view';
+import eventsEngine from "@js/common/core/events/core/events_engine";
+import { removeEvent } from "@js/common/core/events/remove";
+import type { dxElementWrapper } from "@js/core/renderer";
+import $ from "@js/core/renderer";
+import { isDefined } from "@js/core/utils/type";
+import { rowsModule, RowsView } from "@ts/grids/grid_core/views/m_rows_view";
 
-import treeListCore from '../m_core';
+import treeListCore from "../m_core";
 
-const TREELIST_TEXT_CONTENT = 'dx-treelist-text-content';
-const TREELIST_EXPAND_ICON_CONTAINER_CLASS = 'dx-treelist-icon-container';
-const TREELIST_CELL_EXPANDABLE_CLASS = 'dx-treelist-cell-expandable';
-const TREELIST_EMPTY_SPACE_CLASS = 'dx-treelist-empty-space';
-const TREELIST_EMPTY_SPACE_LAST_CLASS = 'dx-treelist-empty-space--last';
-const TREELIST_EXPANDED_CLASS = 'dx-treelist-expanded';
-const TREELIST_COLLAPSED_CLASS = 'dx-treelist-collapsed';
+const TREELIST_TEXT_CONTENT = "dx-treelist-text-content";
+const TREELIST_EXPAND_ICON_CONTAINER_CLASS = "dx-treelist-icon-container";
+const TREELIST_CELL_EXPANDABLE_CLASS = "dx-treelist-cell-expandable";
+const TREELIST_EMPTY_SPACE_CLASS = "dx-treelist-empty-space";
+const TREELIST_EMPTY_SPACE_LAST_CLASS = "dx-treelist-empty-space--last";
+const TREELIST_EXPANDED_CLASS = "dx-treelist-expanded";
+const TREELIST_COLLAPSED_CLASS = "dx-treelist-collapsed";
 
 const createCellContent = function ($container) {
-  return $('<div>')
-    .addClass(TREELIST_TEXT_CONTENT)
-    .appendTo($container);
+  return $("<div>").addClass(TREELIST_TEXT_CONTENT).appendTo($container);
 };
 
 const createIcon = (
   isLast: boolean,
   hasIcon: boolean,
-  isExpanded: boolean,
+  isExpanded: boolean
 ): dxElementWrapper => {
-  const $iconElement = $('<div>').addClass(TREELIST_EMPTY_SPACE_CLASS);
+  const $iconElement = $("<div>").addClass(TREELIST_EMPTY_SPACE_CLASS);
 
   if (isLast) {
     $iconElement.addClass(TREELIST_EMPTY_SPACE_LAST_CLASS);
   }
 
   if (hasIcon) {
-    $iconElement.addClass(isExpanded ? TREELIST_EXPANDED_CLASS : TREELIST_COLLAPSED_CLASS);
+    $iconElement.addClass(
+      isExpanded ? TREELIST_EXPANDED_CLASS : TREELIST_COLLAPSED_CLASS
+    );
   }
 
   return $iconElement;
@@ -41,19 +41,22 @@ const createIcon = (
 
 class TreeListRowsView extends RowsView {
   private _renderIconContainer($container, options) {
-    const $iconContainer = $('<div>')
+    const $iconContainer = $("<div>")
       .addClass(TREELIST_EXPAND_ICON_CONTAINER_CLASS)
       .appendTo($container);
 
     if (options.watch) {
-      const dispose = options.watch(() => [
-        options.row.level,
-        options.row.isExpanded,
-        options.row.node.hasChildren,
-      ], () => {
-        $iconContainer.empty();
-        this._renderIcons($iconContainer, options);
-      });
+      const dispose = options.watch(
+        () => [
+          options.row.level,
+          options.row.isExpanded,
+          options.row.node.hasChildren,
+        ],
+        () => {
+          $iconContainer.empty();
+          this._renderIcons($iconContainer, options);
+        }
+      );
 
       eventsEngine.on($iconContainer, removeEvent, dispose);
     }
@@ -64,14 +67,17 @@ class TreeListRowsView extends RowsView {
 
   protected _renderIcons(
     $container: dxElementWrapper,
-    options,
+    options
   ): dxElementWrapper {
     const $iconContainer = super._renderIcons($container, options);
     const { row } = options;
     const { level } = row;
 
+    // 为每个层级渲染缩进图标或展开/收起图标
     for (let idx = 0; idx <= level; idx += 1) {
       const isLast = idx === level;
+      // 修复：确保有子节点的父节点始终显示展开/收起图标
+      // hasIcon 判断：当前是最后一层级 且 节点有子节点
       const hasIcon = isLast && row.node.hasChildren;
       const $icon = createIcon(isLast, hasIcon, row.isExpanded);
       $icon.appendTo($iconContainer);
@@ -90,8 +96,9 @@ class TreeListRowsView extends RowsView {
     let resultTemplate;
     const renderingTemplate = super._processTemplate(template);
 
-    // @ts-expect-error
-    const firstDataColumnIndex = that._columnsController.getFirstDataColumnIndex();
+    const firstDataColumnIndex =
+      // @ts-expect-error - getFirstDataColumnIndex is a private method
+      that._columnsController.getFirstDataColumnIndex();
 
     if (renderingTemplate && options.column?.index === firstDataColumnIndex) {
       resultTemplate = {
@@ -135,7 +142,7 @@ class TreeListRowsView extends RowsView {
     const node = row && row.node;
     const $rowElement = super._createRow.apply(this, arguments as any);
     if (node) {
-      this.setAria('level', row.level + 1, $rowElement);
+      this.setAria("level", row.level + 1, $rowElement);
       if (node.hasChildren) {
         this.setAriaExpandedAttribute($rowElement, row);
       }
@@ -145,20 +152,26 @@ class TreeListRowsView extends RowsView {
   }
 
   public _getGridRoleName() {
-    return 'treegrid';
+    return "treegrid";
   }
 
   private isExpandIcon($targetElement) {
-    return !!$targetElement.closest(`.${TREELIST_EXPANDED_CLASS}, .${TREELIST_COLLAPSED_CLASS}`).length;
+    return !!$targetElement.closest(
+      `.${TREELIST_EXPANDED_CLASS}, .${TREELIST_COLLAPSED_CLASS}`
+    ).length;
   }
 
   public setAriaExpandedAttribute($row, row) {
     const isRowExpanded = row.isExpanded;
-    this.setAria('expanded', isDefined(isRowExpanded) && isRowExpanded.toString(), $row);
+    this.setAria(
+      "expanded",
+      isDefined(isRowExpanded) && isRowExpanded.toString(),
+      $row
+    );
   }
 }
 
-treeListCore.registerModule('rows', {
+treeListCore.registerModule("rows", {
   defaultOptions: rowsModule.defaultOptions,
   views: {
     rowsView: TreeListRowsView,
