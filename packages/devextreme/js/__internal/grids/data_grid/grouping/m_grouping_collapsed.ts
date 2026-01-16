@@ -60,8 +60,6 @@ const processGroupItems = function (
   expandedInfo.paths = expandedInfo.paths || [];
   expandedInfo.count = expandedInfo.count || 0;
   expandedInfo.lastCount = expandedInfo.lastCount || 0;
-  // 保存原始 items 数组的引用，用于后续验证
-  expandedInfo._originalDataItems = expandedInfo._originalDataItems || items;
 
   if (!groupsCount) return;
 
@@ -98,8 +96,6 @@ const processGroupItems = function (
           path: path.slice(0),
           itemKey: item.key,
           itemCount: item.count,
-          itemRef: item, // 添加对象引用，用于调试
-          itemsArrayIndex: i,
         });
         expandedInfo.items.push(item);
         expandedInfo.paths.push(path.slice(0));
@@ -325,36 +321,7 @@ function loadGroupItems(
       expandedInfo.paths.length && groupCount - loadedGroupCount > 0,
     needLoadLastLevel:
       expandedInfo.paths.length && options.storeLoadOptions.group,
-    // 添加：验证 expandedInfo.items 和 data 的引用关系
-    dataRef: data,
-    expandedInfoItemsRef: expandedInfo.items,
   });
-
-  // 🔍 关键调试：验证 expandedInfo.items 中的项是否在 data 中
-  if (expandedInfo.items && expandedInfo.items.length > 0) {
-    console.log("[loadGroupItems] 验证 expandedInfo.items 是否在 data 中:");
-    expandedInfo.items.forEach((item: any, index: number) => {
-      // 在 data 中查找相同 key 的项
-      const findInData = (items: any[], targetKey: any): any => {
-        for (const dataItem of items) {
-          if (dataItem.key === targetKey) {
-            return dataItem;
-          }
-          if (dataItem.items && Array.isArray(dataItem.items)) {
-            const found = findInData(dataItem.items, targetKey);
-            if (found) return found;
-          }
-        }
-        return null;
-      };
-      const foundInData = findInData(data, item.key);
-      console.log(`  [${index}] key=${item.key}:`, {
-        expandedInfoItem: item,
-        foundInData,
-        isSameRef: item === foundInData,
-      });
-    });
-  }
 
   if (expandedInfo.paths.length && groupCount - loadedGroupCount > 0) {
     makeDataDeferred(options);
@@ -368,38 +335,6 @@ function loadGroupItems(
     );
   } else if (expandedInfo.paths.length && options.storeLoadOptions.group) {
     console.log("[loadGroupItems] 调用 loadLastLevelGroupItems");
-    // 🔍 关键：保存 data 引用和 expandedInfo.items 的映射关系
-    // 因为异步加载期间 data 可能被重新创建
-    console.log("[loadGroupItems] 保存 data 和 expandedInfo.items 的映射:");
-    const itemKeyToDataItemMap = new Map();
-    expandedInfo.items.forEach((item: any, index: number) => {
-      // 在 data 中查找相同 key 的项
-      const findInData = (items: any[], targetKey: any): any => {
-        for (const dataItem of items) {
-          if (dataItem.key === targetKey) {
-            return dataItem;
-          }
-          if (dataItem.items && Array.isArray(dataItem.items)) {
-            const found = findInData(dataItem.items, targetKey);
-            if (found) return found;
-          }
-        }
-        return null;
-      };
-      const foundInData = findInData(data, item.key);
-      itemKeyToDataItemMap.set(item.key, {
-        expandedInfoItem: item,
-        dataItem: foundInData,
-        isSameRef: item === foundInData,
-      });
-      console.log(
-        `  [${index}] key=${item.key}: isSameRef=${item === foundInData}`
-      );
-    });
-    // 将映射保存到 expandedInfo 中，供 loadLastLevelGroupItems 使用
-    (expandedInfo as any)._itemKeyToDataItemMap = itemKeyToDataItemMap;
-    (expandedInfo as any)._originalData = data;
-
     makeDataDeferred(options);
     loadLastLevelGroupItems(that, options, expandedInfo, data);
   } else if (isDataDeferred(options.data)) {
@@ -495,16 +430,29 @@ function loadExpandedGroups(
 }
 
 function loadLastLevelGroupItems(that, options, expandedInfo, data) {
-  const expandedFilters: any[] = [];
   const groups = options.group || [];
 
   // 获取 columnsController，用于判断多值字段
   const columnsController =
     that._dataSource?._dataController?._columnsController;
 
-  each(expandedInfo.paths, (_, expandedPath) => {
+  const isPagingLocal = that._dataSource.isLastLevelGroupItemsPagingLocal();
+
+  console.log("[loadLastLevelGroupItems] 准备加载数据（每个分组单独请求）:", {
+    pathsCount: expandedInfo.paths.length,
+    itemsCount: expandedInfo.items.length,
+    isPagingLocal,
+  });
+
+  // 为每个分组项创建单独的请求
+  const deferreds: any[] = [];
+
+  each(expandedInfo.items, (index, item) => {
+    const path = expandedInfo.paths[index];
+
+    // 为当前分组项创建过滤器
     const groupFilter = createGroupFilter(
-      expandedPath,
+      path,
       {
         group: options.isCustomLoading
           ? options.storeLoadOptions.group
@@ -513,591 +461,115 @@ function loadLastLevelGroupItems(that, options, expandedInfo, data) {
       columnsController
     );
 
-    expandedFilters.push(groupFilter);
-  });
+    // 合并基础过滤器和分组过滤器
+    let filter = options.storeLoadOptions.filter;
+    if (!options.storeLoadOptions.isLoadingAll) {
+      filter = dataGridCore.combineFilters([filter, groupFilter]);
+    }
 
-  let { filter } = options.storeLoadOptions;
+    // 计算当前分组项的 skip 和 take
+    // 第一个分组项使用 expandedInfo.skip，其他分组项从 0 开始
+    const itemSkip = index === 0 ? expandedInfo.skip : 0;
+    // 计算当前分组项应该加载的数量
+    let itemTake;
+    if (expandedInfo.take !== undefined) {
+      if (index === 0) {
+        // 第一个分组项：take = min(expandedInfo.take, item.count - skip)
+        itemTake = Math.min(expandedInfo.take, item.count - (itemSkip || 0));
+      } else {
+        // 其他分组项：加载全部数据（因为它们是新展开的）
+        itemTake = item.count;
+      }
+    }
 
-  if (!options.storeLoadOptions.isLoadingAll) {
-    const combinedExpandedFilters = dataGridCore.combineFilters(
-      expandedFilters,
-      "or"
+    const loadOptions = extend({}, options.storeLoadOptions, {
+      requireTotalCount: false,
+      requireGroupCount: false,
+      group: null,
+      sort: groups.concat(
+        dataGridCore.normalizeSortingInfo(options.storeLoadOptions.sort || [])
+      ),
+      filter,
+    });
+
+    if (!isPagingLocal) {
+      loadOptions.skip = itemSkip;
+      loadOptions.take = itemTake;
+    }
+
+    console.log(
+      `[loadLastLevelGroupItems] 分组项 ${index} (${item.key}) 请求参数:`,
+      {
+        path,
+        skip: loadOptions.skip,
+        take: loadOptions.take,
+        itemCount: item.count,
+      }
     );
 
-    filter = dataGridCore.combineFilters([filter, combinedExpandedFilters]);
-  }
+    // 发送请求
+    const loadResult =
+      loadOptions.take === 0 ? [] : that._dataSource.loadFromStore(loadOptions);
 
-  const loadOptions = extend({}, options.storeLoadOptions, {
-    requireTotalCount: false,
-    requireGroupCount: false,
-    group: null,
-    sort: groups.concat(
-      dataGridCore.normalizeSortingInfo(options.storeLoadOptions.sort || [])
-    ),
-    filter,
-  });
-
-  const isPagingLocal = that._dataSource.isLastLevelGroupItemsPagingLocal();
-
-  if (!isPagingLocal) {
-    loadOptions.skip = expandedInfo.skip;
-    loadOptions.take = expandedInfo.take;
-  }
-
-  console.log("[loadLastLevelGroupItems] 准备加载数据:", {
-    skip: expandedInfo.skip,
-    take: expandedInfo.take,
-    isPagingLocal,
-    pathsCount: expandedInfo.paths.length,
-    itemsCount: expandedInfo.items.length,
-  });
-
-  when(
-    expandedInfo.take === 0 ? [] : that._dataSource.loadFromStore(loadOptions)
-  )
-    .done((items) => {
+    // 处理请求结果
+    const deferred = when(loadResult).then((items) => {
       console.log(
-        "[loadLastLevelGroupItems] 数据加载成功，返回数据量:",
+        `[loadLastLevelGroupItems] 分组项 ${index} (${item.key}) 数据加载成功，返回数据量:`,
         items ? items.length : 0
       );
 
       if (isPagingLocal) {
-        items = that._dataSource.sortLastLevelGroupItems(
-          items,
-          groups,
-          expandedInfo.paths
-        );
-        items = expandedInfo.skip ? items.slice(expandedInfo.skip) : items;
-        items = expandedInfo.take ? items.slice(0, expandedInfo.take) : items;
+        items = that._dataSource.sortLastLevelGroupItems(items, groups, [path]);
+        items = itemSkip ? items.slice(itemSkip) : items;
+        items = itemTake ? items.slice(0, itemTake) : items;
       }
 
-      const originalItemsLength = items ? items.length : 0;
-      // 获取最后一个分组字段的 selector，用于匹配数据
-      const lastGroup = groups[groups.length - 1];
-      // 尝试多种方式获取 selector
-      const groupSelector =
-        lastGroup?.selector ||
-        lastGroup?.dataField ||
-        (lastGroup && typeof lastGroup === "string" ? lastGroup : null);
-
-      // 尝试从 columnsController 获取分组列信息
-      let groupColumn: any = null;
-      try {
-        const columnsController =
-          that._dataSource?._dataController?._columnsController;
-        if (columnsController) {
-          const groupColumns = columnsController.getGroupColumns();
-          if (groupColumns && groupColumns.length > 0) {
-            groupColumn = groupColumns[groupColumns.length - 1];
-          }
-        }
-      } catch (e) {
-        console.log("[loadLastLevelGroupItems] 无法获取 columnsController:", e);
-      }
-
-      // 输出第一条数据的结构，用于调试
-      if (items && items.length > 0) {
-        const firstItem = items[0];
-        let firstItemGroupValue: any = null;
-        if (
-          groupColumn &&
-          typeof groupColumn.calculateGroupValue === "function"
-        ) {
-          try {
-            firstItemGroupValue = groupColumn.calculateGroupValue(firstItem);
-          } catch (e) {
-            console.log(
-              "[loadLastLevelGroupItems] calculateGroupValue 执行失败:",
-              e
-            );
-          }
-        }
-        if (!firstItemGroupValue && groupSelector) {
-          firstItemGroupValue = firstItem[groupSelector];
-        }
-        if (!firstItemGroupValue && groupColumn?.dataField) {
-          firstItemGroupValue = firstItem[groupColumn.dataField];
-        }
-      }
-
-      // 🔧 修复：始终使用按分组值匹配的逻辑，而不是按顺序分配
-      // 原因：服务器返回的数据顺序可能和 expandedInfo.items 的顺序不一致
-      // 如果按顺序分配，会导致数据分配到错误的分组
-      const totalExpectedCount = expandedInfo.items.reduce(
-        (sum: number, item: any) => sum + (item.count || 0),
-        0
+      // 深拷贝数据
+      const expandedItems = (items || []).map((dataItem) =>
+        extend({}, dataItem)
       );
-      const isDataShared = originalItemsLength < totalExpectedCount;
 
-      // 🔧 修复：只要有 groupSelector，就使用按分组值匹配的逻辑
-      // 这样可以确保数据始终分配到正确的分组，无论服务器返回的数据顺序如何
-      const shouldUseMatchingLogic = groupSelector && items && items.length > 0;
+      applyContinuationToGroupItem(
+        options,
+        expandedInfo,
+        groups.length - 1,
+        index
+      );
 
-      console.log("[loadLastLevelGroupItems] 判断数据分配方式:", {
-        originalItemsLength,
-        totalExpectedCount,
-        isDataShared,
-        hasGroupSelector: !!groupSelector,
-        groupSelector: groupSelector
-          ? typeof groupSelector === "function"
-            ? "function"
-            : groupSelector
-          : "none",
-        shouldUseMatchingLogic,
-        reason: shouldUseMatchingLogic
-          ? "使用按分组值匹配逻辑（确保数据分配到正确的分组）"
-          : "使用按顺序分配逻辑（无法获取分组值）",
-      });
-
-      if (shouldUseMatchingLogic) {
-        console.log("[loadLastLevelGroupItems] 使用按分组值匹配的数据分配逻辑");
-        // 数据共用情况：根据数据的实际分组值匹配分组项
-        each(expandedInfo.items, (index, item) => {
-          const path = expandedInfo.paths[index];
-          const expectedGroupValue = path[path.length - 1]; // 最后一个路径值就是分组值
-
-          console.log(
-            `[loadLastLevelGroupItems] 按分组值匹配-处理分组项 ${index}:`,
-            {
-              path,
-              expectedGroupValue,
-              itemKey: item.key,
-              itemCount: item.count,
-            }
-          );
-
-          // 查找匹配该分组值的数据
-          const matchedItems: any[] = [];
-          each(items, (itemIndex, dataItem) => {
-            let actualGroupValue;
-
-            // 优先使用 groupColumn 的 calculateGroupValue
-            if (
-              groupColumn &&
-              typeof groupColumn.calculateGroupValue === "function"
-            ) {
-              try {
-                actualGroupValue = groupColumn.calculateGroupValue(dataItem);
-              } catch (e) {
-                console.log(
-                  `[loadLastLevelGroupItems] calculateGroupValue 执行失败 (item ${itemIndex}):`,
-                  e
-                );
-              }
-            }
-
-            // 如果还没有获取到，尝试其他方式
-            if (actualGroupValue === undefined || actualGroupValue === null) {
-              if (typeof groupSelector === "function") {
-                actualGroupValue = groupSelector(dataItem);
-              } else if (typeof groupSelector === "string") {
-                actualGroupValue = dataItem[groupSelector];
-              } else if (groupColumn?.dataField) {
-                actualGroupValue = dataItem[groupColumn.dataField];
-              } else if (lastGroup?.dataField) {
-                actualGroupValue = dataItem[lastGroup.dataField];
-              } else {
-                actualGroupValue = dataItem.key;
-              }
-            }
-
-            // 处理分组值可能是逗号分隔的多值字符串的情况
-            // 例如：actualGroupValue = '姜博耀,许南'，expectedGroupValue = '姜博耀'
-            let isMatch = false;
-
-            // 特殊处理：如果 expectedGroupValue 是 null/undefined，需要匹配 actualGroupValue 也是 null/undefined
-            if (
-              expectedGroupValue === null ||
-              expectedGroupValue === undefined
-            ) {
-              isMatch =
-                actualGroupValue === null || actualGroupValue === undefined;
-            } else if (
-              actualGroupValue !== undefined &&
-              actualGroupValue !== null
-            ) {
-              // 如果 actualGroupValue 是字符串且包含逗号，说明可能是多值
-              if (
-                typeof actualGroupValue === "string" &&
-                actualGroupValue.includes(",")
-              ) {
-                // 将字符串按逗号分割，去除空格，然后检查是否包含期望值
-                const values = actualGroupValue.split(",").map((v) => v.trim());
-                const comparableExpected = toComparable(
-                  expectedGroupValue,
-                  true
-                );
-
-                // 检查期望值是否在值列表中
-                for (const value of values) {
-                  if (toComparable(value, true) === comparableExpected) {
-                    isMatch = true;
-                    break;
-                  }
-                }
-              } else {
-                // 单值情况，直接比较
-                const comparableActual = toComparable(actualGroupValue, true);
-                const comparableExpected = toComparable(
-                  expectedGroupValue,
-                  true
-                );
-                isMatch = comparableActual === comparableExpected;
-              }
-            }
-
-            // 如果匹配，添加到匹配列表
-            if (isMatch) {
-              matchedItems.push(dataItem);
-            }
-          });
-
-          console.log(
-            `[loadLastLevelGroupItems] 按分组值匹配-匹配到 ${matchedItems.length} 条数据 (分组: ${item.key})`
-          );
-
-          // 深拷贝匹配的数据，并为每个分组项的数据生成唯一的 key
-          // 需要修改 DataGrid 实际使用的 keyExpr 以确保唯一性
-          let keyExpr: string | null = null;
-          try {
-            // 优先从 dataController 获取 keyExpr
-            const dataController = that._dataSource?._dataController;
-            if (dataController) {
-              const key = dataController.key();
-              if (key && typeof key === "string") {
-                keyExpr = key;
-              }
-            }
-
-            // 如果无法从 dataController 获取，尝试从 DataGrid 的 option 中获取
-            if (!keyExpr && that.option) {
-              const optionKeyExpr = that.option("keyExpr");
-              if (optionKeyExpr && typeof optionKeyExpr === "string") {
-                keyExpr = optionKeyExpr;
-              }
-            }
-
-            // 尝试从 DataSource 的 store 获取 key
-            if (!keyExpr && that._dataSource?.store) {
-              try {
-                const storeKey = that._dataSource.store().key();
-                if (storeKey && typeof storeKey === "string") {
-                  keyExpr = storeKey;
-                }
-              } catch (e) {
-                // 忽略错误
-              }
-            }
-          } catch (e) {
-            console.log("[loadLastLevelGroupItems] 无法获取 keyExpr:", e);
-          }
-
-          // 如果还是无法获取，尝试常见的 key 字段（包括 Id 和 Key）
-          // 注意：从错误信息看，DataGrid 可能使用 Id 作为 keyExpr
-          // 优先尝试 Id（因为错误信息显示的是数字 key），然后是 Key
-          if (!keyExpr && matchedItems.length > 0) {
-            const firstItem = matchedItems[0];
-            // 尝试常见的 key 字段名（包括大小写变体）
-            // 优先尝试 Id（因为错误信息显示的是数字），然后是 Key
-            const possibleKeyNames = ["Id", "id", "ID", "Key", "key", "KEY"];
-
-            for (const possibleKey of possibleKeyNames) {
-              if (firstItem[possibleKey] !== undefined) {
-                keyExpr = possibleKey;
-                break;
-              }
-            }
-          }
-
-          const expandedItems = matchedItems.map((dataItem, itemIndex) => {
-            const copiedItem = extend({}, dataItem);
-
-            // 为 DataGrid 实际使用的 keyExpr 字段生成唯一的 key
-            // 如果 keyExpr 是显示列（如 Id），保存原始值以便显示
-            if (keyExpr) {
-              const keyExprValue = keyExpr; // 保存到局部变量，确保类型检查通过
-              if (copiedItem[keyExprValue] !== undefined) {
-                const originalKey = copiedItem[keyExprValue];
-                // 使用分组路径和索引生成唯一 key
-                const uniqueKey = `${originalKey}_group_${path.join(
-                  "_"
-                )}_${index}_${itemIndex}`;
-
-                // 保存原始值（如果 keyExpr 是 Id，保存到 _originalId）
-                // 这样用户可以通过自定义列模板来显示原始值
-                if (
-                  keyExprValue === "Id" ||
-                  keyExprValue === "id" ||
-                  keyExprValue === "ID"
-                ) {
-                  copiedItem["_originalId"] = originalKey;
-                } else if (
-                  keyExprValue === "Key" ||
-                  keyExprValue === "key" ||
-                  keyExprValue === "KEY"
-                ) {
-                  copiedItem["_originalKey"] = originalKey;
-                }
-
-                // 修改 keyExpr 字段为唯一值
-                copiedItem[keyExprValue] = uniqueKey;
-              }
-            } else if (keyExpr) {
-              console.warn(
-                `[loadLastLevelGroupItems] 警告：keyExpr 为 ${keyExpr}，但数据项中没有该字段`
-              );
-            } else {
-              console.warn(
-                `[loadLastLevelGroupItems] 警告：无法确定 keyExpr，无法生成唯一 key`
-              );
-            }
-
-            return copiedItem;
-          });
-
-          applyContinuationToGroupItem(
-            options,
-            expandedInfo,
-            groups.length - 1,
-            index
-          );
-
-          const beforeAssign = item.items ? item.items.length : 0;
-          const beforeAssignData = item.items
-            ? JSON.stringify(
-                item.items.map((i: any) => i.id || i.key || "unknown")
-              ).substring(0, 100)
-            : "null";
-
-          // 保存原始 item 引用，用于后续检查
-          const itemRef = item;
-          const itemKey = item.key;
-
-          console.log(
-            `[loadLastLevelGroupItems] 按分组值匹配-准备赋值 (分组: ${item.key}, 数据量: ${expandedItems.length})`
-          );
-
-          item.items = expandedItems;
-          // 标记这个分组项的数据是刚加载的，防止被 _processPaging 截断
-          item._justLoaded = true;
-
-          console.log(
-            `[loadLastLevelGroupItems] 按分组值匹配-赋值完成 (分组: ${
-              item.key
-            }, 最终数据量: ${item.items ? item.items.length : 0})`
-          );
-
-          const afterAssign = item.items ? item.items.length : 0;
-          const afterAssignData = item.items
-            ? JSON.stringify(
-                item.items.map((i: any) => i.id || i.key || "unknown")
-              ).substring(0, 100)
-            : "null";
-
-          // 延迟检查，看看数据是否被其他地方修改
-          setTimeout(() => {
-            const currentLength = item.items ? item.items.length : 0;
-            const currentData = item.items
-              ? JSON.stringify(
-                  item.items.map((i: any) => i.id || i.key || "unknown")
-                ).substring(0, 100)
-              : "null";
-            if (
-              currentLength !== afterAssign ||
-              currentData !== afterAssignData
-            ) {
-              console.warn(
-                `[loadLastLevelGroupItems] ⚠️ 数据被修改了！分组项 ${index} (${itemKey}):`,
-                {
-                  path,
-                  originalLength: afterAssign,
-                  currentLength,
-                  originalData: afterAssignData,
-                  currentData,
-                }
-              );
-            }
-          }, 100);
-        });
-      } else {
-        // 非共用数据情况：按顺序分配数据（原有逻辑）
-        console.log("[loadLastLevelGroupItems] 使用非共用数据分配逻辑");
-        let currentIndex = 0;
-
-        each(expandedInfo.items, (index, item) => {
-          const itemCount =
-            item.count - ((index === 0 && expandedInfo.skip) || 0);
-          const path = expandedInfo.paths[index];
-
-          console.log(
-            `[loadLastLevelGroupItems] 非共用数据，分配给分组项 ${index}:`,
-            {
-              itemCount,
-              itemsLength: items.length,
-              currentIndex,
-              sliceStart: currentIndex,
-              sliceEnd: currentIndex + itemCount,
-              skip: expandedInfo.skip,
-            }
-          );
-
-          // 使用 slice 获取数据片段，并深拷贝每个对象避免引用共享
-          const expandedItems = items
-            .slice(currentIndex, currentIndex + itemCount)
-            .map((dataItem) => extend({}, dataItem));
-
-          console.log(
-            `[loadLastLevelGroupItems] slice 后得到 ${expandedItems.length} 条数据`
-          );
-
-          currentIndex += itemCount;
-
-          applyContinuationToGroupItem(
-            options,
-            expandedInfo,
-            groups.length - 1,
-            index
-          );
-
-          const beforeAssign = item.items ? item.items.length : 0;
-          const beforeAssignData = item.items
-            ? JSON.stringify(
-                item.items.map((i: any) => i.id || i.key || "unknown")
-              ).substring(0, 100)
-            : "null";
-
-          const itemRef = item;
-          const itemKey = item.key;
-
-          console.log(
-            `[loadLastLevelGroupItems] 非共用-准备赋值，expandedItems.length=${expandedItems.length}`
-          );
-
-          item.items = expandedItems;
-          // 标记这个分组项的数据是刚加载的，防止被 _processPaging 截断
-          item._justLoaded = true;
-
-          console.log(
-            `[loadLastLevelGroupItems] 非共用-赋值后 item.items.length=${
-              item.items ? item.items.length : 0
-            }`
-          );
-
-          const afterAssign = item.items ? item.items.length : 0;
-          const afterAssignData = item.items
-            ? JSON.stringify(
-                item.items.map((i: any) => i.id || i.key || "unknown")
-              ).substring(0, 100)
-            : "null";
-
-          // 延迟检查，看看数据是否被其他地方修改
-          setTimeout(() => {
-            const currentLength = item.items ? item.items.length : 0;
-            const currentData = item.items
-              ? JSON.stringify(
-                  item.items.map((i: any) => i.id || i.key || "unknown")
-                ).substring(0, 100)
-              : "null";
-            if (
-              currentLength !== afterAssign ||
-              currentData !== afterAssignData
-            ) {
-              console.warn(
-                `[loadLastLevelGroupItems] ⚠️ 数据被修改了！分组项 ${index} (${itemKey}):`,
-                {
-                  path,
-                  originalLength: afterAssign,
-                  currentLength,
-                  originalData: afterAssignData,
-                  currentData,
-                }
-              );
-            }
-          }, 100);
-        });
-      }
+      // 赋值给分组项
+      item.items = expandedItems;
+      item._justLoaded = true;
 
       console.log(
-        "[loadLastLevelGroupItems] 准备 resolve data，分组项数据分配完成"
+        `[loadLastLevelGroupItems] 分组项 ${index} (${item.key}) 赋值完成，items.length=${expandedItems.length}`
       );
+
+      return expandedItems;
+    });
+
+    deferreds.push(deferred);
+  });
+
+  // 等待所有请求完成
+  when
+    .apply(null, deferreds)
+    .done(() => {
+      console.log("[loadLastLevelGroupItems] 所有分组项数据加载完成");
+
+      // 输出最终状态
       each(expandedInfo.items, (index, item) => {
-        const itemsArray = item.items;
-        const itemsLength = itemsArray ? itemsArray.length : 0;
         console.log(`  分组项 ${index}:`, {
           path: expandedInfo.paths[index],
           key: item.key,
           count: item.count,
-          itemsLength,
-          itemsIsArray: Array.isArray(itemsArray),
-          firstItemId:
-            itemsArray && itemsArray[0]
-              ? itemsArray[0].Id || itemsArray[0].id
-              : "none",
+          itemsLength: item.items ? item.items.length : 0,
         });
-      });
-
-      // 检查 data 数组中对应的分组项
-      console.log("[loadLastLevelGroupItems] 检查 data 数组中的分组项:");
-      each(data, (dataIndex, dataItem) => {
-        if (dataItem.items !== undefined) {
-          console.log(`  data[${dataIndex}] 分组项:`, {
-            key: dataItem.key,
-            itemsLength: dataItem.items ? dataItem.items.length : 0,
-            itemsIsArray: Array.isArray(dataItem.items),
-          });
-        }
-      });
-
-      console.log("[loadLastLevelGroupItems] resolve 之前，data 的状态:", {
-        dataLength: data ? data.length : 0,
-        dataIsArray: Array.isArray(data),
-        firstItemKey: data && data[0] ? data[0].key : "none",
-        firstItemHasItems:
-          data && data[0] ? data[0].items !== undefined : false,
-      });
-
-      // 验证引用关系：expandedInfo.items[0] 和 data 中的分组项是否是同一个对象
-      console.log("[loadLastLevelGroupItems] 验证引用关系:");
-      each(expandedInfo.items, (index, item) => {
-        const path = expandedInfo.paths[index];
-        // 在 data 中找到对应的分组项
-        let dataItem: any = null;
-        if (data && data.length > 0 && data[0].items !== undefined) {
-          dataItem = data[0]; // 简化：假设只有一个分组
-        }
-
-        console.log(
-          `  expandedInfo.items[${index}] === data中的分组项?`,
-          item === dataItem,
-          {
-            expandedItemKey: item.key,
-            expandedItemsLength: item.items ? item.items.length : 0,
-            dataItemKey: dataItem ? dataItem.key : "none",
-            dataItemsLength:
-              dataItem && dataItem.items ? dataItem.items.length : 0,
-          }
-        );
       });
 
       options.data.resolve(data);
       console.log(
         "[loadLastLevelGroupItems] 已调用 options.data.resolve(data)"
       );
-
-      // 立即检查 data 数组中分组项的状态
-      // setTimeout(() => {
-      //   console.log(
-      //     "[loadLastLevelGroupItems] resolve 100ms 后，检查 data 状态:"
-      //   );
-      //   each(data, (dataIndex, dataItem) => {
-      //     if (dataItem.items !== undefined) {
-      //       console.log(`  data[${dataIndex}]:`, {
-      //         key: dataItem.key,
-      //         itemsLength: dataItem.items ? dataItem.items.length : 0,
-      //       });
-      //     }
-      //   });
-      // }, 100);
     })
     .fail((error) => {
       console.error("[loadLastLevelGroupItems] 数据加载失败:", error);
@@ -1372,14 +844,6 @@ export class GroupingHelper extends GroupingHelperCore {
     let totalCount;
     const expandedInfo = {};
 
-    // 🔍 调试：记录 options.data 的初始状态
-    console.log("[handleDataLoadedCore] 开始处理，初始 options.data:", {
-      dataLength: options.data ? options.data.length : 0,
-      firstItemKey:
-        options.data && options.data[0] ? options.data[0].key : "none",
-      dataRef: options.data,
-    });
-
     if (options.isCustomLoading) {
       callBase(options);
 
@@ -1399,24 +863,12 @@ export class GroupingHelper extends GroupingHelperCore {
         });
       }
 
-      // 🔍 调试：记录 updateGroupInfos 之前的 data
-      const dataBeforeUpdateGroupInfos = options.data;
-      console.log("[handleDataLoadedCore] updateGroupInfos 之前:", {
-        dataRef: dataBeforeUpdateGroupInfos,
-      });
-
       totalCount = updateGroupInfos(
         that,
         options,
         options.data,
         loadedGroupCount
       );
-
-      // 🔍 调试：检查 updateGroupInfos 是否修改了 data
-      console.log("[handleDataLoadedCore] updateGroupInfos 之后:", {
-        dataRefChanged: options.data !== dataBeforeUpdateGroupInfos,
-        dataRef: options.data,
-      });
 
       if (totalCount < 0) {
         // @ts-expect-error
@@ -1452,45 +904,13 @@ export class GroupingHelper extends GroupingHelperCore {
         options.lastLoadOptions.skips = options.skips;
         options.lastLoadOptions.takes = options.takes;
       }
-
-      // 🔍 调试：记录 callBase 之前的 data
-      const dataBeforeCallBase = options.data;
-      console.log("[handleDataLoadedCore] callBase 之前:", {
-        dataRef: dataBeforeCallBase,
-        firstItemKey:
-          dataBeforeCallBase && dataBeforeCallBase[0]
-            ? dataBeforeCallBase[0].key
-            : "none",
-      });
-
       callBase(options);
-
-      // 🔍 调试：检查 callBase 是否修改了 data（这是关键！）
-      console.log("[handleDataLoadedCore] callBase 之后:", {
-        dataRefChanged: options.data !== dataBeforeCallBase,
-        oldDataRef: dataBeforeCallBase,
-        newDataRef: options.data,
-        oldFirstItemKey:
-          dataBeforeCallBase && dataBeforeCallBase[0]
-            ? dataBeforeCallBase[0].key
-            : "none",
-        newFirstItemKey:
-          options.data && options.data[0] ? options.data[0].key : "none",
-      });
 
       // 先执行 _processPaging（如果不需要异步加载，这是正确的）
       if (!options.remoteOperations.paging) {
         that._processPaging(options, loadedGroupCount);
       }
     }
-
-    // 🔍 调试：记录传递给 loadGroupItems 的 data
-    console.log("[handleDataLoadedCore] 传递给 loadGroupItems 的 data:", {
-      dataRef: options.data,
-      dataLength: options.data ? options.data.length : 0,
-      firstItemKey:
-        options.data && options.data[0] ? options.data[0].key : "none",
-    });
 
     loadGroupItems(
       that,
